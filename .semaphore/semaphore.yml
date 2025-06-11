@@ -29,3 +29,4 @@ blocks:
               done
 
               echo "Finished 1-hour continuous run."
+          parallelism: 5
