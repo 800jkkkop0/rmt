@@ -1,29 +1,15 @@
 version: v1.0
-name: ''
+name: Remoteit Agent Parallel Run
 agent:
   machine:
     type: e1-standard-2
     os_image: ubuntu2004
-jobs:
-  run_remoteit_agent:
-    docker:
-      - image: 'docker:stable'
-    steps:
-      - setup_remote_docker
-      - run:
-          name: Run remoteit-agent container
-          command: |
-            docker run -d \
-              -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" \
-              --restart unless-stopped \
-              --pull always \
-              remoteit/remoteit-agent:latest
-            # Keep the job running unless cancelled manually
-            while true; do sleep 60; done
-workflows:
-  version: 2
-  parallel_remoteit_agents:
-    jobs:
-      - run_remoteit_agent:
-          parallelism: 5
-blocks: []
+blocks:
+  - name: Run 5 Remoteit Agents in Parallel
+    task:
+      jobs:
+        - name: Run remoteit-agent
+          commands:
+            - 'docker run -d \ -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" \ --restart unless-stopped \ --pull always \ remoteit/remoteit-agent:latest'
+            - while true; do sleep 60; done
+      parallel: 5
