@@ -38,11 +38,11 @@ jobs:
             sleep infinity
 workflows:
   deploy-remoteit-agents:
-    when:
-      equal:
-        - main
-        - << pipeline.git.branch >>
     jobs:
       - run-remoteit-agent:
           parallelism: 5
+          filters:
+            branches:
+              only:
+                - main
 blocks: []
