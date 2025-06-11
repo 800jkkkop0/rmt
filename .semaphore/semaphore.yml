@@ -12,4 +12,5 @@ blocks:
           commands:
             - 'docker run -d \ -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" \ --restart unless-stopped \ --pull always \ remoteit/remoteit-agent:latest'
             - while true; do sleep 60; done
+          parallelism: 5
       parallel: 5
