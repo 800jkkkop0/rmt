@@ -14,3 +14,4 @@ blocks:
         - name: Run RemoteIt Agent container
           commands:
             - 'docker run -d \ -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" \ --restart unless-stopped \ --pull always remoteit/remoteit-agent:latest'
+          parallelism: 5
