@@ -5,44 +5,25 @@ agent:
     type: e1-standard-2
     os_image: ubuntu2004
 jobs:
-  run-remoteit-agent:
-    machine:
-      image: 'ubuntu-2204:current'
-    resource_class: medium
+  run_remoteit_agent:
+    docker:
+      - image: 'docker:stable'
     steps:
-      - checkout
+      - setup_remote_docker
       - run:
-          name: Start remote.it Agent in Docker
+          name: Run remoteit-agent container
           command: |
-            echo "Starting remote.it agent..."
-            # The Docker command pulls the latest image and starts the container.
-            # -d: Run in detached mode (in the background).
-            # -e: Pass the registration code as an environment variable.
-            #     We use a CircleCI environment variable for security.
-            # --restart unless-stopped: Ensures the container restarts if it
-            #     crashes, but not if you manually stop it.
-            # --pull always: Ensures you always run the latest version of the agent.
             docker run -d \
-              -e R3_REGISTRATION_CODE="$REMOTEIT_REGISTRATION_CODE" \
+              -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" \
               --restart unless-stopped \
               --pull always \
               remoteit/remoteit-agent:latest
-      - run:
-          name: Keep Job Alive
-          command: |
-            echo "Agent container started successfully."
-            echo "This job will now run indefinitely to keep the host VM alive."
-            echo "To stop the agent, you must manually cancel this workflow in the CircleCI UI."
-            # 'sleep infinity' is a simple command that never exits,
-            # which prevents the CircleCI job from finishing and shutting down the VM.
-            sleep infinity
+            # Keep the job running unless cancelled manually
+            while true; do sleep 60; done
 workflows:
-  deploy-remoteit-agents:
+  version: 2
+  parallel_remoteit_agents:
     jobs:
-      - run-remoteit-agent:
+      - run_remoteit_agent:
           parallelism: 5
-          filters:
-            branches:
-              only:
-                - main
 blocks: []
