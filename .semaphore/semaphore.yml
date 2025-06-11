@@ -1,27 +1,31 @@
 version: v1.0
-name: Run Remote.it Agent in Parallel
+name: Remote.it Agent Continuous Install
 agent:
   machine:
     type: e1-standard-2
     os_image: ubuntu2004
 blocks:
-  - name: Start Remote.it Agents
-    execution_time_limit: 1440
+  - name: Run Installer for 1 Hour
     task:
-      prologue:
-        commands:
-          - echo "Checking Docker version..."
-          - docker --version
       jobs:
-        - name: Launch Agent
-          parallelism: 5
+        - name: Install remote.it agent continuously
           commands:
             - checkout
-            - 'echo "Starting Remote.it agent on runner ${SEMAPHORE_JOB_INDEX}..."'
-            - 'docker run -d --name "remoteit-agent-${SEMAPHORE_JOB_INDEX}" -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" --restart unless-stopped --pull always remoteit/remoteit-agent:latest'
-            - sleep 5
-            - 'echo "Verifying running containers:"'
-            - docker ps
-            - echo "Agent is running in the background. This job will now wait indefinitely."
-            - echo "Press the 'Stop' button in the Semaphore UI to cancel."
-            - sleep infinity
+            - |
+              echo "Starting continuous run for 1 hour..."
+              # Set the end time to 3600 seconds (1 hour) from now.
+              end_time=$((SECONDS + 3600))
+
+              # Loop until the current time exceeds the end time.
+              while [ $SECONDS -lt $end_time ]; do
+                echo "Executing remote.it installation script..."
+
+                # The registration code is now defined inline with the command.
+                R3_REGISTRATION_CODE="55EC315E-BF92-5164-BAB5-624903D7BEF2" \
+                sh -c "$(curl -L https://downloads.remote.it/remoteit/install_agent.sh)"
+
+                echo "Installation attempt finished. Waiting for 60 seconds..."
+                sleep 60
+              done
+
+              echo "Finished 1-hour continuous run."
