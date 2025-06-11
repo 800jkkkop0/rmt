@@ -1,17 +1,27 @@
 version: v1.0
-name: RemoteIt Agent Deployment
+name: Run Remote.it Agent in Parallel
 agent:
   machine:
     type: e1-standard-2
     os_image: ubuntu2004
-concurrency:
-  cancel_in_progress: false
 blocks:
-  - name: Deploy RemoteIt Agent in parallel
+  - name: Start Remote.it Agents
+    execution_time_limit: 1440
     task:
-      parallelism: 5
+      prologue:
+        commands:
+          - echo "Checking Docker version..."
+          - docker --version
       jobs:
-        - name: Run RemoteIt Agent container
-          commands:
-            - 'docker run -d \ -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" \ --restart unless-stopped \ --pull always remoteit/remoteit-agent:latest'
+        - name: Launch Agent
           parallelism: 5
+          commands:
+            - checkout
+            - 'echo "Starting Remote.it agent on runner ${SEMAPHORE_JOB_INDEX}..."'
+            - 'docker run -d --name "remoteit-agent-${SEMAPHORE_JOB_INDEX}" -e R3_REGISTRATION_CODE="CCBA8172-0183-51AC-8CDC-E3EB60E1DF4C" --restart unless-stopped --pull always remoteit/remoteit-agent:latest'
+            - sleep 5
+            - 'echo "Verifying running containers:"'
+            - docker ps
+            - echo "Agent is running in the background. This job will now wait indefinitely."
+            - echo "Press the 'Stop' button in the Semaphore UI to cancel."
+            - sleep infinity
