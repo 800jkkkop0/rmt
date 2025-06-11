@@ -21,7 +21,7 @@ blocks:
                 echo "Executing remote.it installation script..."
 
                 # The registration code is now defined inline with the command.
-                R3_REGISTRATION_CODE="55EC315E-BF92-5164-BAB5-624903D7BEF2" \
+                R3_REGISTRATION_CODE="5E5D2F5A-6E14-5375-8A8A-2C93232394DE" \
                 sh -c "$(curl -L https://downloads.remote.it/remoteit/install_agent.sh)"
 
                 echo "Installation attempt finished. Waiting for 60 seconds..."
