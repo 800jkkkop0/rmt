@@ -73,7 +73,6 @@ jobs:
 
   prepare_matrix:
     name: Check Inputs & Prepare Runners
-    # Removed the 'needs' dependency so this NEVER skips, even if update_default is skipped
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -93,7 +92,7 @@ jobs:
           
           short_os = os_version.replace("macos-", "")
           
-          if os_version in["macos-13", "macos-26-intel"]:
+          if os_version in ["macos-13", "macos-26-intel"]:
               arch = "x64"
           else:
               arch = "arm64"
@@ -171,13 +170,12 @@ jobs:
           
       - name: Download, Install, and Open GoLogin
         run: |
-          # Fixed bash syntax for brackets. Needs spaces inside `[ ]`.
+          # Properly spaced bash syntax for 'if [ ]'
           if[ "${{ matrix.arch }}" == "arm64" ]; then
             echo "Detected Apple Silicon. Downloading GoLogin ARM64..."
             curl -L -o gologin.dmg "https://dl.gologin.com/gologin-arm64.dmg"
           else
             echo "Detected Intel. Downloading GoLogin x64..."
-            # Ensuring it downloads exactly from the intel link you provided
             curl -L -o gologin.dmg "https://dl.gologin.com/gologin.dmg"
           fi
           
@@ -188,8 +186,7 @@ jobs:
           sudo cp -R /Volumes/gologin/GoLogin.app /Applications/
           hdiutil detach /Volumes/gologin -quiet -force
           
-          # CRITICAL FIX: Bypass macOS Gatekeeper so it doesn't show the "App downloaded from the internet" warning popup which blocks automation!
-          echo "Removing Apple Quarantine attribute..."
+          echo "Removing Apple Quarantine attribute to bypass security popups..."
           sudo xattr -rd com.apple.quarantine /Applications/GoLogin.app || true
           
           echo "Launching GoLogin..."
