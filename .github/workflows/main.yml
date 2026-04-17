@@ -57,7 +57,7 @@ jobs:
   remote_session:
     name: Remote Session ${{ matrix.device }}
     needs: prepare_matrix
-    runs-on: windows-latest
+    runs-on: windows-11-arm
     timeout-minutes: 60
     
     strategy:
