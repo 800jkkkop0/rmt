@@ -1,0 +1,218 @@
+name: Parallel 1-5 (GetScrn Windows + GoLogin)
+
+# REQUIRED: Allows the bot to commit and push the updated defaults to the repo
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_version:
+        description: 'Windows OS Version'
+        required: true
+        type: choice
+        options:
+          - 'windows-2025'
+          - 'windows-2022'
+          - 'windows-11-arm'
+        default: 'windows-2025'
+      getscreen_email:
+        description: 'Getscreen.me Account Email (Required)'
+        required: true
+        type: string
+      gologin_email:
+        description: 'GoLogin Account Email (Required)'
+        required: true
+        type: string
+      num_devices:
+        description: 'Number of Devices to Spawn'
+        required: true
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+        default: '1'
+
+jobs:
+  prepare_matrix:
+    name: Check Inputs & Prepare Runners
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      # 1. Checkout the repository so we can modify the workflow file
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Automatically update the default values for the next run
+      - name: Save Inputs as Defaults for Next Run
+        env:
+          OS_VERSION: ${{ inputs.os_version }}
+          GETSCREEN_EMAIL: ${{ inputs.getscreen_email }}
+          GOLOGIN_EMAIL: ${{ inputs.gologin_email }}
+          NUM_DEVICES: ${{ inputs.num_devices }}
+        run: |
+          # Find the workflow file dynamically
+          for file in .github/workflows/*.yml .github/workflows/*.yaml; do
+            if [ -f "$file" ] &&[ "$(yq '.name' "$file")" = "Parallel 1-5 (GetScrn Windows + GoLogin)" ]; then
+              echo "Updating defaults in $file..."
+              
+              # Safely modify the defaults using yq
+              yq -i '.on.workflow_dispatch.inputs.os_version.default = env(OS_VERSION)' "$file"
+              yq -i '.on.workflow_dispatch.inputs.getscreen_email.default = env(GETSCREEN_EMAIL)' "$file"
+              yq -i '.on.workflow_dispatch.inputs.gologin_email.default = env(GOLOGIN_EMAIL)' "$file"
+              yq -i '.on.workflow_dispatch.inputs.num_devices.default = env(NUM_DEVICES)' "$file"
+              
+              # Configure git and commit the changes
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git add "$file"
+              
+              # Check if anything actually changed before committing
+              if git diff --staged --quiet; then
+                echo "Defaults are unchanged. Skipping commit."
+              else
+                git commit -m "chore: auto-update workflow input defaults"
+                # Commit and push, failing gracefully if concurrent jobs clash
+                git push || echo "Push failed (could be concurrent runs). Ignoring."
+              fi
+              break
+            fi
+          done
+
+      # 3. Generate dynamic matrix (Your original code)
+      - name: Generate Dynamic Matrix
+        id: set-matrix
+        shell: python
+        env:
+          EMAIL: ${{ inputs.getscreen_email }}
+          NUM_DEVICES: ${{ inputs.num_devices }}
+          OS_VERSION: ${{ inputs.os_version }}
+        run: |
+          import os, json
+          email = os.environ.get("EMAIL", "").strip()
+          num_devices = int(os.environ.get("NUM_DEVICES", "1"))
+          os_version = os.environ.get("OS_VERSION", "windows-2025")
+          
+          # Extracts the short version string (e.g., '2025', '2022', or '11-arm')
+          short_os = os_version.replace("windows-", "")
+          
+          includes =[]
+          if email:
+              # Loops up to the number of devices chosen and generates names like "1-Win-2025"
+              for i in range(1, num_devices + 1):
+                  includes.append({
+                      "device": f"{i}-Win-{short_os}", 
+                      "email": email,
+                      "os": os_version
+                  })
+                  
+          if not includes:
+              print("Error: Valid configuration could not be generated. Exiting.")
+              exit(1)
+              
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"matrix={json.dumps({'include': includes})}\n")
+
+  remote_session:
+    name: Remote Session ${{ matrix.device }}
+    needs: prepare_matrix
+    # Dynamically select the runner OS chosen by the user
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare_matrix.outputs.matrix) }}
+
+    steps:
+      - name: Install and Start Getscreen.me
+        shell: pwsh
+        run: |
+          Write-Host "Downloading Getscreen.me Agent..."
+          Invoke-WebRequest -Uri "https://getscreen.me/download/getscreen.msi" -OutFile "getscreen.msi"
+          
+          # Uses the simplified name generated by the python matrix (e.g. 1-Win-2025)
+          $DeviceName = "${{ matrix.device }}"
+          Write-Host "Installing and linking Getscreen.me for Device $DeviceName..."
+          
+          $InstallArgs = "/i getscreen.msi /qn REGISTER=`"${{ matrix.email }}`" CONFIG=`"name='$DeviceName' autostart=true nonadmin=true control=true disable_confirmation=true`""
+          Start-Process msiexec.exe -Wait -ArgumentList $InstallArgs
+          
+          Write-Host "✅ Getscreen.me is configured and running."
+          
+      - name: Download, Install, and Open GoLogin
+        shell: pwsh
+        run: |
+          Write-Host "Downloading GoLogin for Windows..."
+          Invoke-WebRequest -Uri "https://dl.gologin.com/gologin.exe" -OutFile "gologin_installer.exe"
+          
+          Write-Host "Installing GoLogin..."
+          Start-Process -FilePath ".\gologin_installer.exe" -ArgumentList "/S" -Wait
+          
+          Write-Host "Launching GoLogin..."
+          Start-Process "$env:USERPROFILE\AppData\Local\Programs\GoLogin\GoLogin.exe"
+          
+          Write-Host "✅ GoLogin installed and opened!"
+          
+      - name: Automate GoLogin Login
+        shell: pwsh
+        env:
+          GOLOGIN_EMAIL: ${{ inputs.gologin_email }}
+          GOLOGIN_PASSWORD: "11223344"
+        run: |
+          Write-Host "Installing Python UI Automation tools..."
+          pip install pyautogui pygetwindow
+          
+          Write-Host "Running Automation Script..."
+          python -c "
+          import pyautogui
+          import pygetwindow as gw
+          import time
+          import os
+          
+          # 1. Wait for GoLogin to open and load fully
+          print('Waiting 15 seconds for GoLogin window to appear...')
+          time.sleep(15)
+          
+          # 2. Find the GoLogin window and focus it
+          windows = gw.getWindowsWithTitle('Gologin')
+          if windows:
+              win = windows[0]
+              try:
+                  win.activate()
+                  win.maximize()
+              except:
+                  pass
+              time.sleep(3)
+              
+              # 3. From 'Email address' field, press TAB to reach 'I already have an account'
+              print('Navigating to Login page...')
+              pyautogui.press('tab', presses=8, interval=0.5)
+              pyautogui.press('enter')
+              
+              # 4. Wait for the 'Login' page to load
+              time.sleep(4)
+              
+              # 5. Type Email and Password
+              print('Entering credentials...')
+              pyautogui.write(os.environ['GOLOGIN_EMAIL'])
+              pyautogui.press('tab')
+              
+              pyautogui.write(os.environ['GOLOGIN_PASSWORD'])
+              pyautogui.press('enter')
+              
+              print('✅ Login automated successfully.')
+          else:
+              print('❌ Could not find GoLogin window.')
+          "
+          
+      - name: Keep Runner Alive
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Session is active. This runner will remain online until the job timeout is reached."
+          Start-Sleep -Seconds 3600
