@@ -29,11 +29,13 @@ on:
         required: true
         type: choice
         options:
-          - 'macos-13'
           - 'macos-14'
           - 'macos-15'
           - 'macos-26'
           - 'macos-26-intel'
+          - 'namespace-profile-macos-14'
+          - 'namespace-profile-macos-15'
+          - 'namespace-profile-macos-26'
         default: 'macos-26'
 
 jobs:
