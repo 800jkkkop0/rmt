@@ -23,7 +23,7 @@ on:
           - '3'
           - '4'
           - '5'
-        default: '1'
+        default: '5'
       macos_version:
         description: 'Select macOS Runner Version'
         required: true
