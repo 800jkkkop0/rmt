@@ -7,10 +7,12 @@ on:
         description: 'Getscreen.me Account Email (Required)'
         required: true
         type: string
+        default: '' # Starts blank, updated by the script
       gologin_email:
         description: 'GoLogin Account Email (Required)'
         required: true
         type: string
+        default: '' # Starts blank, updated by the script
       num_devices:
         description: 'Number of Devices to Spawn'
         required: true
@@ -33,11 +35,6 @@ on:
           - 'macos-26'
           - 'macos-26-intel'
         default: 'macos-26'
-      save_as_default:
-        description: 'Save as default for future runs (UI Checkbox)'
-        required: false
-        type: boolean
-        default: false
 
 jobs:
   prepare_matrix:
@@ -46,6 +43,11 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }} # Uses your existing PAT
+
       - name: Generate Dynamic Matrix
         id: set-matrix
         shell: python
@@ -78,6 +80,45 @@ jobs:
               
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"matrix={json.dumps({'include': includes})}\n")
+
+      - name: Update Workflow Defaults (Remember Inputs)
+        shell: python
+        env:
+          MACOS_VERSION: ${{ inputs.macos_version }}
+          GETSCREEN_EMAIL: ${{ inputs.getscreen_email }}
+          GOLOGIN_EMAIL: ${{ inputs.gologin_email }}
+          NUM_DEVICES: ${{ inputs.num_devices }}
+        run: |
+          import re
+          import os
+
+          # Targeting main3.yml automatically
+          file_path = ".github/workflows/main3.yml" 
+          
+          with open(file_path, "r") as f:
+              content = f.read()
+
+          def update_default(input_name, new_val):
+              global content
+              # Finds and replaces the string inside the default: '...'
+              pattern = r"(" + input_name + r":[\s\S]*?default:\s*')[^']*(')"
+              content = re.sub(pattern, rf"\g<1>{new_val}\g<2>", content, count=1)
+
+          update_default("macos_version", os.environ.get("MACOS_VERSION"))
+          update_default("getscreen_email", os.environ.get("GETSCREEN_EMAIL"))
+          update_default("gologin_email", os.environ.get("GOLOGIN_EMAIL"))
+          update_default("num_devices", os.environ.get("NUM_DEVICES"))
+
+          with open(file_path, "w") as f:
+              f.write(content)
+
+      - name: Commit and Push New Defaults
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/main3.yml
+          # Only commits if the inputs actually changed
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last used inputs for macOS [skip ci]" && git push)
               
   remote_session:
     name: Remote Session ${{ matrix.device }}
@@ -99,7 +140,7 @@ jobs:
           sudo sysadminctl -adminUser "$USER" -password admin || true
           
           echo "✅ Credentials configured. You can now authorize macOS GUI prompts with Username: admin / Password: admin"
-
+          
       - name: Install, Bypass Security, and Start Getscreen.me
         run: |
           echo "Downloading Getscreen.me Agent for macOS..."
