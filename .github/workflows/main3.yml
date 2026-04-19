@@ -7,12 +7,12 @@ on:
         description: 'Getscreen.me Account Email (Required)'
         required: true
         type: string
-        default: '' # Starts blank, updated by the script
+        default: 'techx@justzeus.com' # Starts blank, updated by the script
       gologin_email:
         description: 'GoLogin Account Email (Required)'
         required: true
         type: string
-        default: '' # Starts blank, updated by the script
+        default: 'ki17@mnb.net' # Starts blank, updated by the script
       num_devices:
         description: 'Number of Devices to Spawn'
         required: true
@@ -34,7 +34,7 @@ on:
           - 'macos-15'
           - 'macos-26'
           - 'macos-26-intel'
-        default: 'macos-26'
+        default: 'macos-26-intel'
 
 jobs:
   prepare_matrix:
