@@ -33,10 +33,7 @@ on:
           - 'macos-15'
           - 'macos-26'
           - 'macos-26-intel'
-          - 'namespace-profile-macos-14'
-          - 'namespace-profile-macos-15'
-          - 'namespace-profile-macos-26'
-        default: 'namespace-profile-macos-26'
+        default: 'macos-26'
 
 jobs:
   prepare_matrix:
