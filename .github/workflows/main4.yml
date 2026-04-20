@@ -1,4 +1,4 @@
-name: Parallel 1-5 (Getscreen + GoLogin)
+name: Win + Mac (Getscreen + GoLogin)
 
 on:
   workflow_dispatch:
@@ -143,7 +143,26 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Downloading Getscreen.me Agent..."
-          Invoke-WebRequest -Uri "https://getscreen.me/download/getscreen.msi" -OutFile "getscreen.msi"
+          $MaxRetries = 3
+          $RetryCount = 0
+          $Success = $false
+          while (-not $Success -and $RetryCount -lt $MaxRetries) {
+              try {
+                  Invoke-WebRequest -Uri "https://getscreen.me/download/getscreen.msi" -OutFile "getscreen.msi" -ErrorAction Stop
+                  if ((Get-Item "getscreen.msi").length -gt 1MB) {
+                      $Success = $true
+                  } else {
+                      Write-Host "File too small, possibly corrupted. Retrying..."
+                      $RetryCount++
+                      Start-Sleep -Seconds 5
+                  }
+              } catch {
+                  $RetryCount++
+                  Write-Host "Download failed. Retrying ($RetryCount/$MaxRetries)..."
+                  Start-Sleep -Seconds 5
+              }
+          }
+          if (-not $Success) { Write-Error "Failed to download Getscreen.me after $MaxRetries attempts"; exit 1 }
           
           $DeviceName = "${{ matrix.device }}"
           Write-Host "Installing and linking Getscreen.me for Device $DeviceName..."
@@ -158,14 +177,53 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Downloading GoLogin for Windows..."
-          Invoke-WebRequest -Uri "https://dl.gologin.com/gologin.exe" -OutFile "gologin_installer.exe"
+          $MaxRetries = 3
+          $RetryCount = 0
+          $Success = $false
+          while (-not $Success -and $RetryCount -lt $MaxRetries) {
+              try {
+                  Invoke-WebRequest -Uri "https://dl.gologin.com/gologin.exe" -OutFile "gologin_installer.exe" -ErrorAction Stop
+                  if ((Get-Item "gologin_installer.exe").length -gt 10MB) {
+                      $Success = $true
+                  } else {
+                      Write-Host "Downloaded file is too small, possibly corrupted. Retrying..."
+                      $RetryCount++
+                      Start-Sleep -Seconds 5
+                  }
+              } catch {
+                  $RetryCount++
+                  Write-Host "Download failed. Retrying ($RetryCount/$MaxRetries)..."
+                  Start-Sleep -Seconds 5
+              }
+          }
+          if (-not $Success) { Write-Error "Failed to download GoLogin after $MaxRetries attempts"; exit 1 }
           
           Write-Host "Installing GoLogin..."
           Start-Process -FilePath ".\gologin_installer.exe" -ArgumentList "/S" -Wait
           
-          Write-Host "Launching GoLogin..."
-          Start-Process "$env:USERPROFILE\AppData\Local\Programs\GoLogin\GoLogin.exe"
+          $GoLoginPath = "$env:USERPROFILE\AppData\Local\Programs\GoLogin\GoLogin.exe"
           
+          Write-Host "Waiting up to 60 seconds for GoLogin.exe to appear on disk..."
+          $WaitAttempts = 0
+          while (-Not (Test-Path $GoLoginPath) -and $WaitAttempts -lt 30) {
+              Start-Sleep -Seconds 2
+              $WaitAttempts++
+          }
+          
+          if (-Not (Test-Path $GoLoginPath)) {
+              Write-Host "Searching for GoLogin.exe in alternative AppData paths..."
+              $Found = Get-ChildItem -Path "$env:USERPROFILE\AppData" -Filter "GoLogin.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($Found) {
+                  $GoLoginPath = $Found.FullName
+                  Write-Host "Found at $GoLoginPath"
+              } else {
+                  Write-Error "❌ GoLogin.exe could not be found after installation."
+                  exit 1
+              }
+          }
+          
+          Write-Host "Launching GoLogin..."
+          Start-Process $GoLoginPath
           Write-Host "✅ GoLogin installed and opened!"
           
       - name: Automate GoLogin Login (Windows)
@@ -184,19 +242,32 @@ jobs:
           import pygetwindow as gw
           import time
           import os
+          import sys
           
-          print('Waiting 15 seconds for GoLogin window to appear...')
-          time.sleep(15)
+          print('Polling up to 60 seconds for GoLogin window to appear...')
+          max_wait = 60
+          wait_time = 0
+          win = None
           
-          windows = gw.getWindowsWithTitle('Gologin')
-          if windows:
-              win = windows[0]
+          while wait_time < max_wait:
+              for title in['Gologin', 'GoLogin', 'gologin']:
+                  windows = gw.getWindowsWithTitle(title)
+                  if windows:
+                      win = windows[0]
+                      break
+              if win:
+                  break
+              time.sleep(2)
+              wait_time += 2
+              print(f'Waited {wait_time} seconds...')
+          
+          if win:
               try:
                   win.activate()
                   win.maximize()
-              except:
-                  pass
-              time.sleep(3)
+              except Exception as e:
+                  print('Could not maximize:', e)
+              time.sleep(5)
               
               print('Navigating to Login page...')
               pyautogui.press('tab', presses=8, interval=0.5)
@@ -205,15 +276,16 @@ jobs:
               time.sleep(4)
               
               print('Entering credentials...')
-              pyautogui.write(os.environ['GOLOGIN_EMAIL'])
+              pyautogui.write(os.environ.get('GOLOGIN_EMAIL', ''))
               pyautogui.press('tab')
               
-              pyautogui.write(os.environ['GOLOGIN_PASSWORD'])
+              pyautogui.write(os.environ.get('GOLOGIN_PASSWORD', ''))
               pyautogui.press('enter')
               
               print('✅ Login automated successfully.')
           else:
-              print('❌ Could not find GoLogin window.')
+              print('❌ Could not find GoLogin window within time limit.')
+              sys.exit(1)
           "
 
       - name: Keep Runner Alive (Windows)
@@ -241,7 +313,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           echo "Downloading Getscreen.me Agent for macOS..."
-          curl -L -o getscreen.dmg "https://getscreen.me/download/getscreen.dmg"
+          curl -L -o getscreen.dmg "https://getscreen.me/download/getscreen.dmg" --retry 3 --retry-delay 5
           
           DeviceName="${{ matrix.device }}"
           
@@ -280,10 +352,10 @@ jobs:
           # Check if OS is Intel based (macos-13 or macos-26-intel)
           if [[ "$OS_VERSION" == "macos-13" || "$OS_VERSION" == "macos-26-intel" ]]; then
               echo "Downloading GoLogin Intel (x64) for $OS_VERSION..."
-              curl -L -o gologin.dmg "https://dl.gologin.com/gologin.dmg"
+              curl -L -o gologin.dmg "https://dl.gologin.com/gologin.dmg" --retry 3 --retry-delay 5
           else
               echo "Downloading GoLogin ARM64 for Apple Silicon ($OS_VERSION)..."
-              curl -L -o gologin.dmg "https://dl.gologin.com/gologin-arm64.dmg"
+              curl -L -o gologin.dmg "https://dl.gologin.com/gologin-arm64.dmg" --retry 3 --retry-delay 5
           fi
           
           echo "Mounting GoLogin DMG..."
@@ -309,8 +381,8 @@ jobs:
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, flags) VALUES ('kTCCServiceAccessibility', '/usr/bin/osascript', 1, 2, 4, 1, 0);" || true
           sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, flags) VALUES ('kTCCServiceAccessibility', 'com.apple.systemevents', 0, 2, 4, 1, 0);" || true
           
-          echo "Waiting 20 seconds for GoLogin to completely render..."
-          sleep 20
+          echo "Waiting 30 seconds for GoLogin to completely render..."
+          sleep 30
           
           echo "Automating keystrokes using AppleScript (Clipboard Method)..."
           osascript <<'EOF'
