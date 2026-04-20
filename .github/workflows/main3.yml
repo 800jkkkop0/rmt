@@ -12,7 +12,7 @@ on:
         description: 'GoLogin Account Email (Required)'
         required: true
         type: string
-        default: 'ki17@mnb.net' # Starts blank, updated by the script
+        default: 'ok1@mnb.net' # Starts blank, updated by the script
       num_devices:
         description: 'Number of Devices to Spawn'
         required: true
@@ -23,7 +23,7 @@ on:
           - '3'
           - '4'
           - '5'
-        default: '5'
+        default: '1'
       macos_version:
         description: 'Select macOS Runner Version'
         required: true
