@@ -1,4 +1,5 @@
-name: Win + Mac GetScrn/Gologin
+name: Parallel 1-5 (Getscreen + GoLogin)
+
 on:
   workflow_dispatch:
     inputs:
@@ -96,8 +97,8 @@ jobs:
           import re
           import os
 
-          # ⚠️ UPDATE THIS TO YOUR EXACT WORKFLOW FILE NAME ⚠️
-          file_path = ".github/workflows/main.yml" 
+          # 👇 FIXED: Updated to match your exact workflow file name 👇
+          file_path = ".github/workflows/main4.yml" 
           
           with open(file_path, "r") as f:
               content = f.read()
@@ -119,7 +120,8 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/main.yml
+          # 👇 FIXED: Updated git add target to main4.yml 👇
+          git add .github/workflows/main4.yml
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update last used inputs [skip ci]" && git push)
 
   remote_session:
